@@ -95,13 +95,33 @@ function SubmitButton() {
 }
 
 function OutputRenderer({ result }: { result: RepurposeResult }) {
+  const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({});
   // TTS playback handler
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const playTTS = async (text: string, languageCode: string = 'en-IN') => {
+  // Map language names to Google Cloud TTS language codes
+  const languageCodeMap: Record<string, string> = {
+    English: 'en-IN',
+    Hindi: 'hi-IN',
+    Bengali: 'bn-IN',
+    Tamil: 'ta-IN',
+    Telugu: 'te-IN',
+    Gujarati: 'gu-IN',
+    Marathi: 'mr-IN',
+    Kannada: 'kn-IN',
+    Malayalam: 'ml-IN',
+    Punjabi: 'pa-IN',
+    Urdu: 'ur-IN',
+  };
+
+  // Get selected language from props or context
+  const selectedLanguage = typeof window !== 'undefined' ? (document.getElementById('language')?.getAttribute('data-state') || 'English') : 'English';
+
+  const playTTS = async (text: string, languageName: string = 'English') => {
     setTtsLoading(true);
     try {
+      const languageCode = languageCodeMap[languageName] || 'en-IN';
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,41 +174,115 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
         if (!quizArray.length) {
           return <p className="text-muted-foreground">No quiz output was generated. Please check your input or try again later.</p>;
         }
+        // Group questions by type
+        const grouped = quizArray.reduce((acc, item, idx) => {
+          acc[item.type] = acc[item.type] || [];
+          acc[item.type].push({ ...item, idx });
+          return acc;
+        }, {} as Record<string, Array<any>>);
+
         return (
-          <Accordion type="multiple" className="space-y-4">
-            {quizArray.map((item, idx) => (
-              <AccordionItem value={`item-${idx}`} key={idx}>
-                <AccordionTrigger>
-                  <div className="flex flex-col text-left">
-                    <span className="font-bold">
-                      {item.type === 'mcq' && 'MCQ'}
-                      {item.type === 'brief' && 'Brief Answer'}
-                      {item.type === 'truefalse' && 'True/False'}
-                      {item.type === 'fillblank' && 'Fill in the Blank'}
-                    </span>
-                    <span>{item.question}</span>
-                    {item.type === 'mcq' && item.options && (
-                      <ul className="mb-2 list-disc pl-5">
-                        {item.options.map((opt: string, i: number) => (
-                          <li key={i}>{opt}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="mt-2">
-                    <span className="font-bold">Answer:</span> {item.answer}
-                  </div>
-                  {item.explanation && (
-                    <div className="mt-2 text-sm text-muted-foreground">
-                      <span className="font-bold">Explanation:</span> {item.explanation}
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
+          <div className="space-y-8">
+            {Object.entries(grouped).map(([type, questions]) => (
+              <div key={type}>
+                <h3 className="font-bold text-lg mb-2 capitalize" style={{ textDecoration: 'none' }}>{type === 'mcq' ? 'Multiple Choice Questions' : type === 'brief' ? 'Brief Answer' : type === 'truefalse' ? 'True/False' : type === 'fillblank' ? 'Fill in the Blank' : type}</h3>
+                <Accordion type="multiple" className="space-y-4">
+                  {Array.isArray(questions) && questions.map((item) => (
+                    <AccordionItem value={`item-${item.idx}`} key={item.idx}>
+                      {(item.type === 'mcq' || item.type === 'truefalse') ? (
+                        <div className="flex flex-col text-left p-4">
+                          <span className="font-bold" style={{ textDecoration: 'none' }}>{item.question}</span>
+                          {item.type === 'mcq' && item.options && (
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              {item.options.map((opt: string, i: number) => {
+                                const isSelected = selectedOptions[item.idx] === i;
+                                const isCorrect = opt === item.answer;
+                                const showResult = selectedOptions[item.idx] !== undefined;
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`rounded-lg px-3 py-2 cursor-pointer flex items-center justify-center border transition-all`}
+                                    style={{ textDecoration: 'none',
+                                      borderColor: isSelected ? '#9333ea' : (isCorrect && showResult ? '#16a34a' : ''),
+                                      background: isCorrect && showResult ? 'linear-gradient(to right, #4ade80, #16a34a)' : '',
+                                      color: isCorrect && showResult ? '#fff' : '',
+                                    }}
+                                    onClick={() => {
+                                      if (selectedOptions[item.idx] === undefined) {
+                                        setSelectedOptions(prev => ({ ...prev, [item.idx]: i }));
+                                      }
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-pressed={isSelected}
+                                  >
+                                    <span style={{ textDecoration: 'none' }}>{opt}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {item.type === 'truefalse' && (
+                            <div className="grid grid-cols-2 gap-2 mt-2">
+                              {['True', 'False'].map((opt, i) => {
+                                const isSelected = selectedOptions[item.idx] === i;
+                                const isCorrect = opt === item.answer;
+                                const showResult = selectedOptions[item.idx] !== undefined;
+                                return (
+                                  <div
+                                    key={i}
+                                    className={`rounded-lg px-3 py-2 cursor-pointer flex items-center justify-center border transition-all`}
+                                    style={{ textDecoration: 'none',
+                                      borderColor: isSelected ? '#9333ea' : (isCorrect && showResult ? '#16a34a' : ''),
+                                      background: isCorrect && showResult ? 'linear-gradient(to right, #4ade80, #16a34a)' : '',
+                                      color: isCorrect && showResult ? '#fff' : '',
+                                    }}
+                                    onClick={() => {
+                                      if (selectedOptions[item.idx] === undefined) {
+                                        setSelectedOptions(prev => ({ ...prev, [item.idx]: i }));
+                                      }
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-pressed={isSelected}
+                                  >
+                                    <span style={{ textDecoration: 'none' }}>{opt}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {selectedOptions[item.idx] !== undefined && item.explanation && (
+                            <div className="mt-2 text-sm text-muted-foreground">
+                              <span className="font-bold">Explanation:</span> {item.explanation}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <AccordionTrigger>
+                          <div className="flex flex-col text-left">
+                            <span className="font-bold" style={{ textDecoration: 'none' }}>{item.question}</span>
+                          </div>
+                        </AccordionTrigger>
+                      )}
+                      {item.type !== 'mcq' && item.type !== 'truefalse' && (
+                        <AccordionContent>
+                          <div className="mt-2">
+                            <span className="font-bold">Answer:</span> {item.answer}
+                          </div>
+                          {item.explanation && (
+                            <div className="mt-2 text-sm text-muted-foreground">
+                              <span className="font-bold">Explanation:</span> {item.explanation}
+                            </div>
+                          )}
+                        </AccordionContent>
+                      )}
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
             ))}
-          </Accordion>
+          </div>
         );
       }
       case 'summary':
@@ -244,7 +338,7 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
         <button
           className="ml-auto px-3 py-1 rounded bg-purple-600 text-white text-sm flex items-center gap-2 shadow hover:bg-purple-700 transition"
           disabled={ttsLoading}
-          onClick={() => ttsPlaying ? stopTTS() : playTTS(ttsText, 'en-IN')}
+          onClick={() => ttsPlaying ? stopTTS() : playTTS(ttsText, selectedLanguage)}
         >
           {ttsLoading ? 'Loading...' : ttsPlaying ? '⏹ Stop' : '🔊 Listen'}
         </button>
@@ -625,6 +719,36 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                   <SelectItem value="Telugu">
                     <div className="flex items-center gap-2">
                       <Languages className="h-4 w-4" /> Telugu
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Gujarati">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Gujarati
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Marathi">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Marathi
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Kannada">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Kannada
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Malayalam">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Malayalam
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Punjabi">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Punjabi
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Urdu">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Urdu
                     </div>
                   </SelectItem>
                 </SelectContent>
