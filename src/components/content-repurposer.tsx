@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useEffect, useState, useRef, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   BrainCircuit,
@@ -140,7 +140,7 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
 }
 
 export function ContentRepurposer() {
-  const [state, formAction] = useFormState(repurposeContent, initialState);
+  const [state, formAction] = useActionState(repurposeContent, initialState);
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -195,7 +195,7 @@ export function ContentRepurposer() {
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, setHistory]);
+  }, [state]);
 
   return (
     <div className="space-y-8">
