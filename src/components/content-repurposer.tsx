@@ -181,7 +181,7 @@ export function ContentRepurposer() {
         },
         output: state,
       };
-      setHistory([newHistoryItem, ...history]);
+      setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
       toast({
         title: 'Content Adapted!',
         description: 'Your new content is ready.',
