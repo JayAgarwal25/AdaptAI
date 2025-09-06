@@ -35,7 +35,19 @@ const prompt = ai.definePrompt({
   name: 'generateQuizFromContentPrompt',
   input: {schema: GenerateQuizFromContentInputSchema},
   output: {schema: GenerateQuizFromContentOutputSchema},
-  prompt: `You are an AI quiz generator. Generate a quiz based on the following content in the specified language.
+  prompt: `You are an advanced AI quiz generator. Based on the following content, generate a quiz in the specified language. The quiz should include a variety of question types:
+
+- Multiple Choice Questions (MCQ)
+- Brief Answer Questions
+- True/False Questions
+- Fill in the Blanks
+
+Output the quiz as a JSON array, where each item is an object with:
+  - type: "mcq" | "brief" | "truefalse" | "fillblank"
+  - question: string
+  - options?: string[] (for mcq)
+  - answer: string
+  - explanation: string (a very brief explanation for the answer)
 
 Content: {{{content}}}
 Language: {{{language}}}

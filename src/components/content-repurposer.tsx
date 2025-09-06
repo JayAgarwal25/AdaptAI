@@ -93,21 +93,43 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
   const renderContent = () => {
     switch (result.outputType) {
       case 'quiz':
-        const quizItems = result.data?.quiz
-          .split(/(Q\d+:)/)
-          .slice(1)
-          .reduce((acc: string[][], part: string, i: number) => {
-            if (i % 2 === 0) acc.push([part]);
-            else acc[acc.length - 1].push(part);
-            return acc;
-          }, []);
+        let quizArray: any[] = [];
+        try {
+          quizArray = JSON.parse(result.data?.quiz || '[]');
+        } catch {
+          return <p>Could not parse quiz output.</p>;
+        }
         return (
-          <Accordion type="single" collapsible className="w-full">
-            {quizItems.map(([question, answer], index) => (
-              <AccordionItem value={`item-${index}`} key={index}>
-                <AccordionTrigger>{question.trim()}</AccordionTrigger>
+          <Accordion type="multiple" className="space-y-4">
+            {quizArray.map((item, idx) => (
+              <AccordionItem value={`item-${idx}`} key={idx}>
+                <AccordionTrigger>
+                  <div className="flex flex-col text-left">
+                    <span className="font-bold">
+                      {item.type === 'mcq' && 'MCQ'}
+                      {item.type === 'brief' && 'Brief Answer'}
+                      {item.type === 'truefalse' && 'True/False'}
+                      {item.type === 'fillblank' && 'Fill in the Blank'}
+                    </span>
+                    <span>{item.question}</span>
+                    {item.type === 'mcq' && item.options && (
+                      <ul className="mb-2 list-disc pl-5">
+                        {item.options.map((opt: string, i: number) => (
+                          <li key={i}>{opt}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </AccordionTrigger>
                 <AccordionContent>
-                  <p className="whitespace-pre-wrap">{answer.trim()}</p>
+                  <div className="mt-2">
+                    <span className="font-bold">Answer:</span> {item.answer}
+                  </div>
+                  {item.explanation && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      <span className="font-bold">Explanation:</span> {item.explanation}
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
             ))}
@@ -139,34 +161,41 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
   );
 }
 
-export function ContentRepurposer() {
+type ContentRepurposerProps = {
+  setHistory: (value: HistoryItem[] | ((val: HistoryItem[]) => HistoryItem[])) => void;
+};
+
+export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
+  const contentContainerRef = useRef<HTMLDivElement>(null);
   const [state, formAction] = useActionState(repurposeContent, initialState);
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-
-  const [history, setHistory] = useLocalStorage<HistoryItem[]>('adapt-ai-history', []);
+  const [history] = useLocalStorage<HistoryItem[]>('adapt-ai-history', []);
   const [content, setContent] = useState('');
   const [outputType, setOutputType] = useState<OutputType>('summary');
   const [language, setLanguage] = useState('English');
   const [currentResult, setCurrentResult] = useState<RepurposeResult | null>(null);
 
+  const processedHistoryIdRef = useRef<string | null>(null);
   useEffect(() => {
     const historyId = searchParams.get('historyId');
-    if (historyId) {
+    if (historyId && processedHistoryIdRef.current !== historyId) {
       const item = history.find((h) => h.id === historyId);
       if (item) {
         setContent(item.input.content);
         setOutputType(item.input.outputType);
         setLanguage(item.input.language);
         setCurrentResult(item.output);
-        // Clear the URL param to allow for new submissions
-        router.replace('/', { scroll: false });
+        processedHistoryIdRef.current = historyId;
+        setTimeout(() => {
+          router.replace('/', { scroll: false });
+        }, 0);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, router]);
+  }, [searchParams, router, history]);
 
   useEffect(() => {
     if (state.success && state.data) {
@@ -197,8 +226,15 @@ export function ContentRepurposer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Scroll to top of main content container when currentResult changes
+  useEffect(() => {
+    if (currentResult && contentContainerRef.current) {
+      contentContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [currentResult]);
+
   return (
-    <div className="space-y-8">
+  <div className="space-y-8" ref={contentContainerRef}>
       <form ref={formRef} action={formAction} className="space-y-6">
         <Card>
           <CardHeader>
@@ -208,24 +244,95 @@ export function ContentRepurposer() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Textarea
-              name="content"
-              placeholder="Start by pasting your content here..."
-              className="min-h-36"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              required
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline">
-                <ImageIcon className="mr-2" /> Upload Image
-              </Button>
-              <Button type="button" variant="outline">
-                <FileIcon className="mr-2" /> Upload Document
-              </Button>
-              <Button type="button" variant="outline">
-                <Video className="mr-2" /> Upload Video
-              </Button>
+            <div className="relative">
+              <Textarea
+                name="content"
+                placeholder="Start by pasting your content here..."
+                className="min-h-36 pb-10"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                required
+              />
+              {/* Image preview and file inputs */}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                id="upload-image"
+                onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    // Show image preview
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                      const imgSrc = ev.target?.result as string;
+                      // Extract text using Tesseract.js
+                      const Tesseract = await import('tesseract.js');
+                      const result = await Tesseract.recognize(file, 'eng');
+                      setContent(result.data.text);
+                      // Optionally show preview (can be styled as needed)
+                      const preview = document.getElementById('image-preview');
+                      if (preview) {
+                        preview.innerHTML = `<img src='${imgSrc}' alt='preview' style='max-width:80px;max-height:80px;border-radius:8px;margin-bottom:4px;' />`;
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                style={{ display: 'none' }}
+                id="upload-document"
+                onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const { readFileAsText } = await import('@/lib/fileReader');
+                    setContent(await readFileAsText(file));
+                  }
+                }}
+              />
+              <input
+                type="file"
+                accept="video/*"
+                style={{ display: 'none' }}
+                id="upload-video"
+                onChange={async e => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const { readFileAsText } = await import('@/lib/fileReader');
+                    setContent(await readFileAsText(file));
+                  }
+                }}
+              />
+              <div className="absolute left-4 bottom-2 flex gap-2 items-end">
+                <span id="image-preview"></span>
+                <button
+                  type="button"
+                  className="p-1 rounded hover:bg-muted transition-colors"
+                  title="Upload Image"
+                  onClick={() => document.getElementById('upload-image')?.click()}
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  className="p-1 rounded hover:bg-muted transition-colors"
+                  title="Upload Document"
+                  onClick={() => document.getElementById('upload-document')?.click()}
+                >
+                  <FileIcon className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  className="p-1 rounded hover:bg-muted transition-colors"
+                  title="Upload Video"
+                  onClick={() => document.getElementById('upload-video')?.click()}
+                >
+                  <Video className="w-5 h-5" />
+                </button>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col md:flex-row items-start md:items-center gap-4">

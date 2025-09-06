@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import { History, Trash2, FileText } from 'lucide-react';
-
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import {
   SidebarGroup,
@@ -25,16 +25,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 
-export function SidebarHistory() {
+export function SidebarHistory({ history, setHistory }: { history: HistoryItem[]; setHistory: (value: HistoryItem[] | ((val: HistoryItem[]) => HistoryItem[])) => void }) {
   const searchParams = useSearchParams();
   const activeHistoryId = searchParams.get('historyId');
-
-  const [history, setHistory] = useLocalStorage<HistoryItem[]>(
-    'adapt-ai-history',
-    []
-  );
-
   const clearHistory = () => {
     setHistory([]);
   };
@@ -48,10 +43,7 @@ export function SidebarHistory() {
       {history.length > 0 && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <SidebarGroupAction
-              aria-label="Clear history"
-              tooltip={{ children: 'Clear History', side: 'right' }}
-            >
+            <SidebarGroupAction aria-label="Clear history">
               <Trash2 />
             </SidebarGroupAction>
           </AlertDialogTrigger>

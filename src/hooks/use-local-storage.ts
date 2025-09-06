@@ -9,19 +9,24 @@ export function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T 
   // useEffect only runs on the client, so we can safely access localStorage here.
   useEffect(() => {
     let currentValue;
-
     try {
       currentValue = JSON.parse(
-        window.localStorage.getItem(key) || String(initialValue)
+        window.localStorage.getItem(key) || JSON.stringify(initialValue)
       );
     } catch (error) {
       currentValue = initialValue;
     }
-    
     setStoredValue(currentValue);
-  }, [key, initialValue]);
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setValue = useCallback((value: T | ((val: T) => T)) => {
+    if (value instanceof Array && value.length === 0) {
+      setStoredValue(value);
+      window.localStorage.removeItem(key);
+      return;
+    }
     const valueToStore = value instanceof Function ? value(storedValue) : value;
     setStoredValue(valueToStore);
     window.localStorage.setItem(key, JSON.stringify(valueToStore));
