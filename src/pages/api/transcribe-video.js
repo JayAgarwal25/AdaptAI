@@ -1,38 +1,26 @@
-import formidable from 'formidable';
-import { spawn } from 'child_process';
-import path from 'path';
-import fs from 'fs';
 import fetch from 'node-fetch';
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: true,
   },
 };
 
 const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY; // Set this in Vercel dashboard
 
-async function transcribeWithAssemblyAI(filePath) {
-  // 1. Upload file to AssemblyAI
-  const uploadRes = await fetch('https://api.assemblyai.com/v2/upload', {
-    method: 'POST',
-    headers: { 'authorization': ASSEMBLYAI_API_KEY },
-    body: fs.createReadStream(filePath),
-  });
-  const { upload_url } = await uploadRes.json();
-
-  // 2. Start transcription job
+async function transcribeWithAssemblyAI(audioUrl) {
+  // 1. Start transcription job
   const transcriptRes = await fetch('https://api.assemblyai.com/v2/transcript', {
     method: 'POST',
     headers: {
       'authorization': ASSEMBLYAI_API_KEY,
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ audio_url: upload_url }),
+    body: JSON.stringify({ audio_url: audioUrl }),
   });
   const { id } = await transcriptRes.json();
 
-  // 3. Poll for completion
+  // 2. Poll for completion
   let transcriptText = '';
   for (let i = 0; i < 60; i++) { // up to 60 seconds
     await new Promise(r => setTimeout(r, 2000));
@@ -58,63 +46,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  const form = formidable({
-    keepExtensions: true,
-    // No uploadDir: keep file in temp
-  });
+  const { audio_url } = req.body;
+  if (!audio_url) {
+    res.status(400).json({ error: 'audio_url is required' });
+    return;
+  }
 
-  await new Promise((resolve, reject) => {
-    form.parse(req, async (err, fields, files) => {
-      if (err) {
-        res.status(500).json({
-          error: 'File upload error',
-          details: err.message,
-          stack: err.stack,
-          fields,
-          files,
-        });
-        return reject();
-      }
-      const videoFile = files.video;
-      if (!videoFile) {
-        res.status(400).json({
-          error: 'No video file uploaded',
-          fields,
-          files,
-        });
-        return reject();
-      }
-      const videoPath = Array.isArray(videoFile) ? videoFile[0].filepath : videoFile.filepath;
-
-      if (!ASSEMBLYAI_API_KEY) {
-        res.status(500).json({
-          error: 'AssemblyAI API key not set',
-          env: process.env,
-        });
-        return reject();
-      }
-      try {
-        const transcript = await transcribeWithAssemblyAI(videoPath);
-        res.status(200).json({ transcript });
-        // Clean up video file
-        try { fs.unlinkSync(videoPath); } catch (cleanupErr) {
-          // Log cleanup error
-          console.error('Cleanup error:', cleanupErr);
-        }
-        resolve();
-      } catch (error) {
-        res.status(500).json({
-          error: error.message,
-          stack: error.stack,
-          videoPath,
-          fields,
-          files,
-        });
-        try { fs.unlinkSync(videoPath); } catch (cleanupErr) {
-          console.error('Cleanup error:', cleanupErr);
-        }
-        reject();
-      }
-    });
-  });
+  if (!ASSEMBLYAI_API_KEY) {
+    res.status(500).json({ error: 'AssemblyAI API key not set' });
+    return;
+  }
+  try {
+    const transcript = await transcribeWithAssemblyAI(audio_url);
+    res.status(200).json({ transcript });
+  } catch (error) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
 }

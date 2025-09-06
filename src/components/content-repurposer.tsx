@@ -1,4 +1,17 @@
 'use client';
+
+// Helper function to upload file to AssemblyAI and get upload_url
+async function uploadToAssemblyAI(file: File, apiKey: string): Promise<string> {
+  const res = await fetch('https://api.assemblyai.com/v2/upload', {
+    method: 'POST',
+    headers: { authorization: apiKey },
+    body: file,
+  });
+  if (!res.ok) throw new Error('Failed to upload to AssemblyAI');
+  const data = await res.json();
+  return data.upload_url;
+}
+
 import 'katex/dist/katex.min.css';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -343,21 +356,30 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const formData = new FormData();
-                  formData.append('video', file);
-                  const res = await fetch('/api/transcribe-video', {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    setContent(data.transcript);
-                  } else {
-                    setContent('');
+                  try {
+                    const apiKey = process.env.NEXT_PUBLIC_ASSEMBLYAI_API_KEY!;
+                    const uploadUrl = await uploadToAssemblyAI(file, apiKey);
+                    const res = await fetch('/api/transcribe-video', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ audio_url: uploadUrl }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setContent(data.transcript);
+                    } else {
+                      setContent('');
+                      toast({
+                        variant: 'destructive',
+                        title: 'Transcription Error',
+                        description: 'Could not transcribe media file. Try again.',
+                      });
+                    }
+                  } catch (err: any) {
                     toast({
                       variant: 'destructive',
-                      title: 'Transcription Error',
-                      description: 'Could not transcribe media file. Try again.',
+                      title: 'Upload Error',
+                      description: err.message,
                     });
                   }
                 }
@@ -371,21 +393,30 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const formData = new FormData();
-                  formData.append('video', file);
-                  const res = await fetch('/api/transcribe-video', {
-                    method: 'POST',
-                    body: formData,
-                  });
-                  if (res.ok) {
-                    const data = await res.json();
-                    setContent(data.transcript);
-                  } else {
-                    setContent('');
+                  try {
+                    const apiKey = process.env.NEXT_PUBLIC_ASSEMBLYAI_API_KEY!;
+                    const uploadUrl = await uploadToAssemblyAI(file, apiKey);
+                    const res = await fetch('/api/transcribe-video', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ audio_url: uploadUrl }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setContent(data.transcript);
+                    } else {
+                      setContent('');
+                      toast({
+                        variant: 'destructive',
+                        title: 'Transcription Error',
+                        description: 'Could not transcribe media file. Try again.',
+                      });
+                    }
+                  } catch (err: any) {
                     toast({
                       variant: 'destructive',
-                      title: 'Transcription Error',
-                      description: 'Could not transcribe media file. Try again.',
+                      title: 'Upload Error',
+                      description: err.message,
                     });
                   }
                 }
