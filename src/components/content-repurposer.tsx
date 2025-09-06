@@ -397,7 +397,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                 type="button"
                 className="p-1 rounded hover:bg-muted transition-colors"
                 title="Upload Image"
-                onClick={() => document.getElementById('upload-image')?.click()}
+                onClick={e => { e.preventDefault(); document.getElementById('upload-image')?.click(); }}
               >
                 <ImageIcon className="w-5 h-5" />
               </button>
@@ -405,7 +405,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                 type="button"
                 className="p-1 rounded hover:bg-muted transition-colors"
                 title="Upload Document"
-                onClick={() => document.getElementById('upload-document')?.click()}
+                onClick={e => { e.preventDefault(); document.getElementById('upload-document')?.click(); }}
               >
                 <FileIcon className="w-5 h-5" />
               </button>
@@ -413,7 +413,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                 type="button"
                 className="p-1 rounded hover:bg-muted transition-colors"
                 title="Upload Video"
-                onClick={() => document.getElementById('upload-video')?.click()}
+                onClick={e => { e.preventDefault(); document.getElementById('upload-video')?.click(); }}
               >
                 <Video className="w-5 h-5" />
               </button>
@@ -421,7 +421,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                 type="button"
                 className="p-1 rounded hover:bg-muted transition-colors"
                 title="Upload Audio"
-                onClick={() => document.getElementById('upload-audio')?.click()}
+                onClick={e => { e.preventDefault(); document.getElementById('upload-audio')?.click(); }}
               >
                 <Music className="w-4 h-4" />
               </button>
