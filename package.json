@@ -42,6 +42,7 @@
     "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^11.9.1",
+    "formidable": "^3.5.4",
     "genkit": "^1.14.1",
     "katex": "^0.16.22",
     "lucide-react": "^0.475.0",

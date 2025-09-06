@@ -16,6 +16,7 @@ import {
   List,
   HelpCircle,
   Video,
+  Music,
   Upload,
   Image as ImageIcon,
   File as FileIcon,
@@ -217,7 +218,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
 
   const processedHistoryIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const historyId = searchParams.get('historyId');
+    const historyId = searchParams?.get('historyId');
     if (historyId && processedHistoryIdRef.current !== historyId) {
       const item = history.find((h) => h.id === historyId);
       if (item) {
@@ -336,14 +337,30 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
             />
             <input
               type="file"
-              accept="video/*"
+              accept="video/*,audio/*,.mp3,.wav,.m4a"
               style={{ display: 'none' }}
-              id="upload-video"
+              id="upload-media"
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  const { readFileAsText } = await import('@/lib/fileReader');
-                  setContent(await readFileAsText(file));
+                  // Upload media (audio/video) to backend for transcription
+                  const formData = new FormData();
+                  formData.append('video', file); // keep field name for backend compatibility
+                  const res = await fetch('/api/transcribe-video', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setContent(data.transcript);
+                  } else {
+                    setContent('');
+                    toast({
+                      variant: 'destructive',
+                      title: 'Transcription Error',
+                      description: 'Could not transcribe media file. Try again.',
+                    });
+                  }
                 }
               }}
             />
@@ -368,10 +385,13 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               <button
                 type="button"
                 className="p-1 rounded hover:bg-muted transition-colors"
-                title="Upload Video"
-                onClick={() => document.getElementById('upload-video')?.click()}
+                title="Upload Audio/Video"
+                onClick={() => document.getElementById('upload-media')?.click()}
               >
-                <Video className="w-5 h-5" />
+                <span className="flex items-center gap-1">
+                  <Video className="w-5 h-5" />
+                  <Music className="w-4 h-4" />
+                </span>
               </button>
             </div>
           </CardContent>
