@@ -1,0 +1,103 @@
+'use client';
+
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { History, Trash2, FileText } from 'lucide-react';
+
+import { useLocalStorage } from '@/hooks/use-local-storage';
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarGroupAction,
+} from '@/components/ui/sidebar';
+import type { HistoryItem } from '@/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
+export function SidebarHistory() {
+  const searchParams = useSearchParams();
+  const activeHistoryId = searchParams.get('historyId');
+
+  const [history, setHistory] = useLocalStorage<HistoryItem[]>(
+    'adapt-ai-history',
+    []
+  );
+
+  const clearHistory = () => {
+    setHistory([]);
+  };
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="flex items-center">
+        <History className="mr-2 size-4" />
+        History
+      </SidebarGroupLabel>
+      {history.length > 0 && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <SidebarGroupAction
+              aria-label="Clear history"
+              tooltip={{ children: 'Clear History', side: 'right' }}
+            >
+              <Trash2 />
+            </SidebarGroupAction>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete your
+                generation history.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={clearHistory}>Continue</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      <SidebarMenu>
+        {history.length > 0 ? (
+          history.map((item) => (
+            <SidebarMenuItem key={item.id}>
+              <Link href={`/?historyId=${item.id}`} className="w-full" scroll={false}>
+                <SidebarMenuButton
+                  isActive={activeHistoryId === item.id}
+                  className="w-full"
+                  tooltip={{
+                    children: item.input.content.substring(0, 100) + '...',
+                    side: 'right',
+                  }}
+                >
+                  <FileText />
+                  <span>
+                    {item.input.content.substring(0, 20) +
+                      (item.input.content.length > 20 ? '...' : '')}
+                  </span>
+                </SidebarMenuButton>
+              </Link>
+            </SidebarMenuItem>
+          ))
+        ) : (
+          <div className="p-4 text-sm text-sidebar-foreground/50">
+            No history yet. Generate some content to see it here.
+          </div>
+        )}
+      </SidebarMenu>
+    </SidebarGroup>
+  );
+}
