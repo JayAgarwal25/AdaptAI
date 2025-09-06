@@ -66,29 +66,53 @@ export default async function handler(req, res) {
   await new Promise((resolve, reject) => {
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        res.status(500).json({ error: 'File upload error', details: err.message });
+        res.status(500).json({
+          error: 'File upload error',
+          details: err.message,
+          stack: err.stack,
+          fields,
+          files,
+        });
         return reject();
       }
       const videoFile = files.video;
       if (!videoFile) {
-        res.status(400).json({ error: 'No video file uploaded' });
+        res.status(400).json({
+          error: 'No video file uploaded',
+          fields,
+          files,
+        });
         return reject();
       }
       const videoPath = Array.isArray(videoFile) ? videoFile[0].filepath : videoFile.filepath;
 
       if (!ASSEMBLYAI_API_KEY) {
-        res.status(500).json({ error: 'AssemblyAI API key not set' });
+        res.status(500).json({
+          error: 'AssemblyAI API key not set',
+          env: process.env,
+        });
         return reject();
       }
       try {
         const transcript = await transcribeWithAssemblyAI(videoPath);
         res.status(200).json({ transcript });
         // Clean up video file
-        try { fs.unlinkSync(videoPath); } catch {}
+        try { fs.unlinkSync(videoPath); } catch (cleanupErr) {
+          // Log cleanup error
+          console.error('Cleanup error:', cleanupErr);
+        }
         resolve();
       } catch (error) {
-        res.status(500).json({ error: error.message });
-        try { fs.unlinkSync(videoPath); } catch {}
+        res.status(500).json({
+          error: error.message,
+          stack: error.stack,
+          videoPath,
+          fields,
+          files,
+        });
+        try { fs.unlinkSync(videoPath); } catch (cleanupErr) {
+          console.error('Cleanup error:', cleanupErr);
+        }
         reject();
       }
     });

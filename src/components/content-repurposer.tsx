@@ -337,15 +337,42 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
             />
             <input
               type="file"
-              accept="video/*,audio/*,.mp3,.wav,.m4a"
+              accept="video/*"
               style={{ display: 'none' }}
-              id="upload-media"
+              id="upload-video"
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  // Upload media (audio/video) to backend for transcription
                   const formData = new FormData();
-                  formData.append('video', file); // keep field name for backend compatibility
+                  formData.append('video', file);
+                  const res = await fetch('/api/transcribe-video', {
+                    method: 'POST',
+                    body: formData,
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setContent(data.transcript);
+                  } else {
+                    setContent('');
+                    toast({
+                      variant: 'destructive',
+                      title: 'Transcription Error',
+                      description: 'Could not transcribe media file. Try again.',
+                    });
+                  }
+                }
+              }}
+            />
+            <input
+              type="file"
+              accept="audio/*,.mp3,.wav,.m4a"
+              style={{ display: 'none' }}
+              id="upload-audio"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const formData = new FormData();
+                  formData.append('video', file);
                   const res = await fetch('/api/transcribe-video', {
                     method: 'POST',
                     body: formData,
@@ -385,13 +412,18 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               <button
                 type="button"
                 className="p-1 rounded hover:bg-muted transition-colors"
-                title="Upload Audio/Video"
-                onClick={() => document.getElementById('upload-media')?.click()}
+                title="Upload Video"
+                onClick={() => document.getElementById('upload-video')?.click()}
               >
-                <span className="flex items-center gap-1">
-                  <Video className="w-5 h-5" />
-                  <Music className="w-4 h-4" />
-                </span>
+                <Video className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="Upload Audio"
+                onClick={() => document.getElementById('upload-audio')?.click()}
+              >
+                <Music className="w-4 h-4" />
               </button>
             </div>
           </CardContent>
