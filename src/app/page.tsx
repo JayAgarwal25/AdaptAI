@@ -13,7 +13,6 @@ import { SidebarHistory } from '@/components/sidebar-history';
 import { ContentRepurposer } from '@/components/content-repurposer';
 import { Logo } from '@/components/icons';
 import Link from 'next/link';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { LogIn, UserPlus } from 'lucide-react';
 
 export default function Home() {
@@ -33,9 +32,6 @@ export default function Home() {
           <SidebarHistory />
         </SidebarContent>
         <SidebarFooter className="border-t border-sidebar-border">
-          <div className="flex items-center justify-between p-2">
-            <ThemeToggle />
-          </div>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Sign Up">

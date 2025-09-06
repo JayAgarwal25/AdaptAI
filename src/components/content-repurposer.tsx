@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef, useActionState } from 'react';
-import { useFormStatus } from 'react-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   BrainCircuit,
@@ -140,25 +140,17 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
 }
 
 export function ContentRepurposer() {
-  const [state, formAction] = useActionState(repurposeContent, initialState);
+  const [state, formAction] = useFormState(repurposeContent, initialState);
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [history, setHistory] = useLocalStorage<HistoryItem[]>('adapt-ai-history', []);
   const [content, setContent] = useState('');
   const [outputType, setOutputType] = useState<OutputType>('summary');
   const [language, setLanguage] = useState('English');
   const [currentResult, setCurrentResult] = useState<RepurposeResult | null>(null);
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [content]);
 
   useEffect(() => {
     const historyId = searchParams.get('historyId');
@@ -217,10 +209,9 @@ export function ContentRepurposer() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
-              ref={textareaRef}
               name="content"
               placeholder="Start by pasting your content here..."
-              className="min-h-12 resize-none overflow-y-hidden text-base"
+              className="min-h-36"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               required
