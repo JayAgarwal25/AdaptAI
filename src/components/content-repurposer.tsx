@@ -145,12 +145,20 @@ export function ContentRepurposer() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [history, setHistory] = useLocalStorage<HistoryItem[]>('adapt-ai-history', []);
   const [content, setContent] = useState('');
   const [outputType, setOutputType] = useState<OutputType>('summary');
   const [language, setLanguage] = useState('English');
   const [currentResult, setCurrentResult] = useState<RepurposeResult | null>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [content]);
 
   useEffect(() => {
     const historyId = searchParams.get('historyId');
@@ -166,7 +174,7 @@ export function ContentRepurposer() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (state.success && state.data) {
@@ -195,7 +203,7 @@ export function ContentRepurposer() {
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, setHistory]);
 
   return (
     <div className="space-y-8">
@@ -209,9 +217,10 @@ export function ContentRepurposer() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
+              ref={textareaRef}
               name="content"
               placeholder="Start by pasting your content here..."
-              className="min-h-[200px] text-base"
+              className="min-h-12 resize-none overflow-y-hidden text-base"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               required

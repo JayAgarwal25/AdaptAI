@@ -4,14 +4,17 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarTrigger,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { SidebarHistory } from '@/components/sidebar-history';
 import { ContentRepurposer } from '@/components/content-repurposer';
 import { Logo } from '@/components/icons';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { LogIn, UserPlus } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -23,12 +26,31 @@ export default function Home() {
             className="flex items-center gap-2 font-headline font-semibold text-lg text-sidebar-foreground hover:text-sidebar-primary transition-colors"
           >
             <Logo className="size-7" />
-            <span>Adapt AI</span>
+            <span className="group-data-[collapsible=icon]:hidden">Adapt AI</span>
           </Link>
         </SidebarHeader>
         <SidebarContent>
           <SidebarHistory />
         </SidebarContent>
+        <SidebarFooter className="border-t border-sidebar-border">
+          <div className="flex items-center justify-between p-2">
+            <ThemeToggle />
+          </div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Sign Up">
+                <UserPlus />
+                <span>Sign Up</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Login">
+                <LogIn />
+                <span>Login</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 sm:pt-4">
