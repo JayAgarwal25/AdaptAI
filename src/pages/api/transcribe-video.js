@@ -59,10 +59,9 @@ export default async function handler(req, res) {
   }
 
   const form = formidable({
-    uploadDir: path.join(process.cwd(), 'uploads'),
     keepExtensions: true,
+    // No uploadDir: keep file in temp
   });
-  fs.mkdirSync(form.uploadDir, { recursive: true });
 
   await new Promise((resolve, reject) => {
     form.parse(req, async (err, fields, files) => {
@@ -77,34 +76,12 @@ export default async function handler(req, res) {
       }
       const videoPath = Array.isArray(videoFile) ? videoFile[0].filepath : videoFile.filepath;
 
-      // Choose method: AssemblyAI if enabled, else local Python
-      const useAssemblyAI = fields.useAssemblyAI === 'true' || process.env.USE_ASSEMBLYAI === 'true';
-
+      if (!ASSEMBLYAI_API_KEY) {
+        res.status(500).json({ error: 'AssemblyAI API key not set' });
+        return reject();
+      }
       try {
-        let transcript = '';
-        if (useAssemblyAI && ASSEMBLYAI_API_KEY) {
-          transcript = await transcribeWithAssemblyAI(videoPath);
-        } else {
-          // Local Python fallback
-          const transcriptPath = path.join(process.cwd(), 'uploads', `${Date.now()}_transcript.txt`);
-          const pythonScript = path.join(process.cwd(), 'scripts', 'transcribe.py');
-          const pythonArgs = [pythonScript, videoPath, transcriptPath];
-          const pythonProcess = spawn('python', pythonArgs);
-
-          await new Promise((resolvePython, rejectPython) => {
-            pythonProcess.on('close', (code) => {
-              if (code !== 0) return rejectPython(new Error('Python script failed'));
-              fs.readFile(transcriptPath, 'utf8', (err, data) => {
-                if (err) return rejectPython(err);
-                transcript = data;
-                // Clean up files
-                try { fs.unlinkSync(videoPath); } catch {}
-                try { fs.unlinkSync(transcriptPath); } catch {}
-                resolvePython();
-              });
-            });
-          });
-        }
+        const transcript = await transcribeWithAssemblyAI(videoPath);
         res.status(200).json({ transcript });
         // Clean up video file
         try { fs.unlinkSync(videoPath); } catch {}
