@@ -11,6 +11,9 @@ import {
   List,
   HelpCircle,
   Video,
+  Upload,
+  Image as ImageIcon,
+  File as FileIcon,
 } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import { repurposeContent, type RepurposeResult } from '@/app/actions';
@@ -201,10 +204,10 @@ export function ContentRepurposer() {
           <CardHeader>
             <CardTitle>Your Content</CardTitle>
             <CardDescription>
-              Paste your text, document, or script below.
+              Paste your text, document, or script below, or upload a file.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Textarea
               name="content"
               placeholder="Start by pasting your content here..."
@@ -213,6 +216,17 @@ export function ContentRepurposer() {
               onChange={(e) => setContent(e.target.value)}
               required
             />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline">
+                <ImageIcon className="mr-2" /> Upload Image
+              </Button>
+              <Button type="button" variant="outline">
+                <FileIcon className="mr-2" /> Upload Document
+              </Button>
+              <Button type="button" variant="outline">
+                <Video className="mr-2" /> Upload Video
+              </Button>
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col md:flex-row items-start md:items-center gap-4">
             <div className="grid gap-2 flex-1 w-full">
@@ -253,19 +267,24 @@ export function ContentRepurposer() {
                       <Languages className="h-4 w-4" /> English
                     </div>
                   </SelectItem>
-                  <SelectItem value="Spanish">
+                  <SelectItem value="Hindi">
                     <div className="flex items-center gap-2">
-                      <Languages className="h-4 w-4" /> Spanish
+                      <Languages className="h-4 w-4" /> Hindi
                     </div>
                   </SelectItem>
-                  <SelectItem value="French">
+                  <SelectItem value="Bengali">
                     <div className="flex items-center gap-2">
-                      <Languages className="h-4 w-4" /> French
+                      <Languages className="h-4 w-4" /> Bengali
                     </div>
                   </SelectItem>
-                  <SelectItem value="German">
+                  <SelectItem value="Tamil">
                     <div className="flex items-center gap-2">
-                      <Languages className="h-4 w-4" /> German
+                      <Languages className="h-4 w-4" /> Tamil
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="Telugu">
+                    <div className="flex items-center gap-2">
+                      <Languages className="h-4 w-4" /> Telugu
                     </div>
                   </SelectItem>
                 </SelectContent>

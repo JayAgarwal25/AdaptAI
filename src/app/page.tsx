@@ -38,11 +38,10 @@ export default function Home() {
         <main className="flex-1 p-4 sm:p-6">
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl md:text-4xl font-headline font-bold mb-2">
-              Content Adaptation Studio
+              Educate India, in every language.
             </h1>
             <p className="text-muted-foreground mb-8">
-              Instantly repurpose any content into summaries, notes, quizzes, and
-              more with the power of AI.
+              Our AI instantly transforms educational content to reach every corner of India, breaking language barriers and saving hundreds of hours of manual work.
             </p>
             <ContentRepurposer />
           </div>
