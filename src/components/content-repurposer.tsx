@@ -1,4 +1,5 @@
 'use client';
+import { Trash2 } from 'lucide-react';
 
 // Helper function to upload file to AssemblyAI and get upload_url
 async function uploadToAssemblyAI(file: File, apiKey: string): Promise<string> {
@@ -94,6 +95,38 @@ function SubmitButton() {
 }
 
 function OutputRenderer({ result }: { result: RepurposeResult }) {
+  // TTS playback handler
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const playTTS = async (text: string, languageCode: string = 'en-IN') => {
+    setTtsLoading(true);
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, languageCode }),
+      });
+      if (!res.ok) throw new Error('TTS failed');
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new window.Audio(audioUrl);
+      audioRef.current = audio;
+      audio.onended = () => setTtsPlaying(false);
+      audio.play();
+      setTtsPlaying(true);
+    } catch (err) {
+      // Optionally show error toast
+    }
+    setTtsLoading(false);
+  };
+  const stopTTS = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setTtsPlaying(false);
+    }
+  };
   if (!result.success && !result.error) return null;
 
   if (result.error) {
@@ -199,14 +232,37 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
   const OutputIcon =
     outputOptions.find((o) => o.value === result.outputType)?.icon || FileText;
 
+  // TTS button logic for heading
+  let ttsButton = null;
+  if (result.success && result.data) {
+    let ttsText = '';
+    if (result.outputType === 'summary') ttsText = result.data.summary;
+    if (result.outputType === 'notes') ttsText = result.data.notes;
+    if (result.outputType === 'video') ttsText = result.data.summary;
+    if (ttsText) {
+      ttsButton = (
+        <button
+          className="ml-auto px-3 py-1 rounded bg-purple-600 text-white text-sm flex items-center gap-2 shadow hover:bg-purple-700 transition"
+          disabled={ttsLoading}
+          onClick={() => ttsPlaying ? stopTTS() : playTTS(ttsText, 'en-IN')}
+        >
+          {ttsLoading ? 'Loading...' : ttsPlaying ? '⏹ Stop' : '🔊 Listen'}
+        </button>
+      );
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <OutputIcon className="h-5 w-5" />
-          Generated{' '}
-          {outputOptions.find((o) => o.value === result.outputType)?.label}
-        </CardTitle>
+        <div className="flex items-center gap-2 justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <OutputIcon className="h-5 w-5" />
+            Generated{' '}
+            {outputOptions.find((o) => o.value === result.outputType)?.label}
+          </CardTitle>
+          {ttsButton}
+        </div>
       </CardHeader>
       <CardContent>{renderContent()}</CardContent>
     </Card>
@@ -218,6 +274,8 @@ type ContentRepurposerProps = {
 };
 
 export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
+  const [extracting, setExtracting] = useState(false);
+  const [extractionReady, setExtractionReady] = useState(false);
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const [state, formAction] = useActionState(repurposeContent, initialState);
   const { toast } = useToast();
@@ -299,14 +357,44 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
             <input type="hidden" name="outputType" value={outputType} />
             <input type="hidden" name="language" value={language} />
             <div>
-              <Textarea
-                name="content"
-                placeholder="Start by pasting your content here..."
-                className="min-h-36"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                required
-              />
+              <div className="relative">
+                <Textarea
+                  name="content"
+                  placeholder="Start by pasting your content here..."
+                  className="min-h-36"
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  required
+                  disabled={extracting}
+                />
+                {(extracting || extractionReady) && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-muted" style={{borderRadius: '0.5rem', opacity: 1}}>
+                    {extracting ? (
+                      <>
+                        <Loader2 className="animate-spin h-8 w-8 mb-2 text-purple-600" />
+                        <span className="text-lg font-medium text-purple-600">Processing Data</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 className="h-8 w-8 mb-2 text-purple-600" />
+                        <span className="text-lg font-medium text-purple-600">Ready! You can now generate content.</span>
+                        <div className="w-full flex justify-end">
+                          <span
+                            className="absolute right-0 bottom-[-2.5rem] text-white cursor-pointer text-sm font-medium flex items-center gap-1"
+                            onClick={() => {
+                              setContent('');
+                              setExtracting(false);
+                              setExtractionReady(false);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" /> Discard
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             {/* Image preview and file inputs */}
             <input
@@ -317,6 +405,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  setExtracting(true);
+                  setExtractionReady(false);
                   // Show image preview
                   const reader = new FileReader();
                   reader.onload = async (ev) => {
@@ -325,6 +415,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                     const Tesseract = await import('tesseract.js');
                     const result = await Tesseract.recognize(file, 'eng');
                     setContent(result.data.text);
+                    setExtracting(false);
+                    setExtractionReady(true);
                     // Optionally show preview (can be styled as needed)
                     const preview = document.getElementById('image-preview');
                     if (preview) {
@@ -343,8 +435,12 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  setExtracting(true);
+                  setExtractionReady(false);
                   const { readFileAsText } = await import('@/lib/fileReader');
                   setContent(await readFileAsText(file));
+                  setExtracting(false);
+                  setExtractionReady(true);
                 }
               }}
             />
@@ -356,6 +452,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  setExtracting(true);
+                  setExtractionReady(false);
                   try {
                     const apiKey = process.env.NEXT_PUBLIC_ASSEMBLYAI_API_KEY!;
                     const uploadUrl = await uploadToAssemblyAI(file, apiKey);
@@ -367,8 +465,12 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                     if (res.ok) {
                       const data = await res.json();
                       setContent(data.transcript);
+                      setExtracting(false);
+                      setExtractionReady(true);
                     } else {
                       setContent('');
+                      setExtracting(false);
+                      setExtractionReady(false);
                       toast({
                         variant: 'destructive',
                         title: 'Transcription Error',
@@ -376,6 +478,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                       });
                     }
                   } catch (err: any) {
+                    setExtracting(false);
+                    setExtractionReady(false);
                     toast({
                       variant: 'destructive',
                       title: 'Upload Error',
@@ -393,6 +497,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
               onChange={async e => {
                 const file = e.target.files?.[0];
                 if (file) {
+                  setExtracting(true);
+                  setExtractionReady(false);
                   try {
                     const apiKey = process.env.NEXT_PUBLIC_ASSEMBLYAI_API_KEY!;
                     const uploadUrl = await uploadToAssemblyAI(file, apiKey);
@@ -404,8 +510,12 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                     if (res.ok) {
                       const data = await res.json();
                       setContent(data.transcript);
+                      setExtracting(false);
+                      setExtractionReady(true);
                     } else {
                       setContent('');
+                      setExtracting(false);
+                      setExtractionReady(false);
                       toast({
                         variant: 'destructive',
                         title: 'Transcription Error',
@@ -413,6 +523,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
                       });
                     }
                   } catch (err: any) {
+                    setExtracting(false);
+                    setExtractionReady(false);
                     toast({
                       variant: 'destructive',
                       title: 'Upload Error',
