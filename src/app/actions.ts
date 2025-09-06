@@ -41,9 +41,12 @@ export async function repurposeContent(
 
   try {
     switch (outputType) {
-      case 'summary':
-      case 'notes': {
+      case 'summary': {
         const result = await repurposeContentIntoSummary({ content, language });
+        return { success: true, data: result, outputType };
+      }
+      case 'notes': {
+        const result = await (await import('@/ai/flows/repurpose-content-into-notes')).repurposeContentIntoNotes({ content, language });
         return { success: true, data: result, outputType };
       }
       case 'quiz': {

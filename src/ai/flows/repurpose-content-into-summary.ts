@@ -37,6 +37,8 @@ const prompt = ai.definePrompt({
   output: {schema: RepurposeContentIntoSummaryOutputSchema},
   prompt: `You are an AI assistant that summarizes content into a concise summary in the chosen language.
 
+  If the content contains math, equations, or formulas, include them in LaTeX format (delimited by $...$ for inline or $$...$$ for block) in the summary. For math explanations, use LaTeX for all equations and steps.
+
   Summarize the following content in {{language}}:
   Content: {{{content}}}
   `,

@@ -1,4 +1,4 @@
-'use server';
+"use server";
 /**
  * @fileOverview Generates a quiz from uploaded content.
  *

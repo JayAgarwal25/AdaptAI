@@ -1,6 +1,11 @@
 'use client';
+import 'katex/dist/katex.min.css';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import ReactMarkdown from 'react-markdown';
 
 import { useEffect, useState, useRef, useActionState } from 'react';
+import { MathRenderer } from './MathRenderer';
 import { useFormStatus } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -92,12 +97,15 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
 
   const renderContent = () => {
     switch (result.outputType) {
-      case 'quiz':
+      case 'quiz': {
         let quizArray: any[] = [];
         try {
           quizArray = JSON.parse(result.data?.quiz || '[]');
         } catch {
           return <p>Could not parse quiz output.</p>;
+        }
+        if (!quizArray.length) {
+          return <p className="text-muted-foreground">No quiz output was generated. Please check your input or try again later.</p>;
         }
         return (
           <Accordion type="multiple" className="space-y-4">
@@ -135,10 +143,40 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
             ))}
           </Accordion>
         );
+      }
       case 'summary':
+        return (
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {result.data?.summary || ''}
+            </ReactMarkdown>
+          </div>
+        );
       case 'notes':
+        return (
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {result.data?.notes || ''}
+            </ReactMarkdown>
+          </div>
+        );
       case 'video':
-        return <p className="whitespace-pre-wrap">{result.data?.summary}</p>;
+        return (
+          <div className="markdown-body">
+            <ReactMarkdown
+              remarkPlugins={[remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {result.data?.summary || ''}
+            </ReactMarkdown>
+          </div>
+        );
       default:
         return <p>Could not render the output.</p>;
     }
@@ -171,10 +209,9 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
+  const [outputType, setOutputType] = useState<OutputType>('summary');
   const [history] = useLocalStorage<HistoryItem[]>('adapt-ai-history', []);
   const [content, setContent] = useState('');
-  const [outputType, setOutputType] = useState<OutputType>('summary');
   const [language, setLanguage] = useState('English');
   const [currentResult, setCurrentResult] = useState<RepurposeResult | null>(null);
 
@@ -199,16 +236,16 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
 
   useEffect(() => {
     if (state.success && state.data) {
-      setCurrentResult(state);
+      setCurrentResult({ ...state, outputType });
       const newHistoryItem: HistoryItem = {
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         input: {
-          content: formRef.current?.querySelector<HTMLTextAreaElement>('[name="content"]')?.value || '',
-          outputType: formRef.current?.querySelector<HTMLInputElement>('[name="outputType"]')?.value as OutputType || 'summary',
-          language: formRef.current?.querySelector<HTMLInputElement>('[name="language"]')?.value || 'English',
+          content,
+          outputType,
+          language,
         },
-        output: state,
+        output: { ...state, outputType },
       };
       setHistory(prevHistory => [newHistoryItem, ...prevHistory]);
       toast({
@@ -216,7 +253,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
         description: 'Your new content is ready.',
       });
     } else if (state.error) {
-      setCurrentResult(state);
+      setCurrentResult({ ...state, outputType });
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -235,7 +272,7 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
 
   return (
   <div className="space-y-8" ref={contentContainerRef}>
-      <form ref={formRef} action={formAction} className="space-y-6">
+      <form action={formAction} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Your Content</CardTitle>
@@ -244,102 +281,104 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="relative">
+            {/* Hidden inputs to ensure React state is submitted */}
+            <input type="hidden" name="outputType" value={outputType} />
+            <input type="hidden" name="language" value={language} />
+            <div>
               <Textarea
                 name="content"
                 placeholder="Start by pasting your content here..."
-                className="min-h-36 pb-10"
+                className="min-h-36"
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 required
               />
-              {/* Image preview and file inputs */}
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                id="upload-image"
-                onChange={async e => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    // Show image preview
-                    const reader = new FileReader();
-                    reader.onload = async (ev) => {
-                      const imgSrc = ev.target?.result as string;
-                      // Extract text using Tesseract.js
-                      const Tesseract = await import('tesseract.js');
-                      const result = await Tesseract.recognize(file, 'eng');
-                      setContent(result.data.text);
-                      // Optionally show preview (can be styled as needed)
-                      const preview = document.getElementById('image-preview');
-                      if (preview) {
-                        preview.innerHTML = `<img src='${imgSrc}' alt='preview' style='max-width:80px;max-height:80px;border-radius:8px;margin-bottom:4px;' />`;
-                      }
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-              />
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                style={{ display: 'none' }}
-                id="upload-document"
-                onChange={async e => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const { readFileAsText } = await import('@/lib/fileReader');
-                    setContent(await readFileAsText(file));
-                  }
-                }}
-              />
-              <input
-                type="file"
-                accept="video/*"
-                style={{ display: 'none' }}
-                id="upload-video"
-                onChange={async e => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const { readFileAsText } = await import('@/lib/fileReader');
-                    setContent(await readFileAsText(file));
-                  }
-                }}
-              />
-              <div className="absolute left-4 bottom-2 flex gap-2 items-end">
-                <span id="image-preview"></span>
-                <button
-                  type="button"
-                  className="p-1 rounded hover:bg-muted transition-colors"
-                  title="Upload Image"
-                  onClick={() => document.getElementById('upload-image')?.click()}
-                >
-                  <ImageIcon className="w-5 h-5" />
-                </button>
-                <button
-                  type="button"
-                  className="p-1 rounded hover:bg-muted transition-colors"
-                  title="Upload Document"
-                  onClick={() => document.getElementById('upload-document')?.click()}
-                >
-                  <FileIcon className="w-5 h-5" />
-                </button>
-                <button
-                  type="button"
-                  className="p-1 rounded hover:bg-muted transition-colors"
-                  title="Upload Video"
-                  onClick={() => document.getElementById('upload-video')?.click()}
-                >
-                  <Video className="w-5 h-5" />
-                </button>
-              </div>
+            </div>
+            {/* Image preview and file inputs */}
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              id="upload-image"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  // Show image preview
+                  const reader = new FileReader();
+                  reader.onload = async (ev) => {
+                    const imgSrc = ev.target?.result as string;
+                    // Extract text using Tesseract.js
+                    const Tesseract = await import('tesseract.js');
+                    const result = await Tesseract.recognize(file, 'eng');
+                    setContent(result.data.text);
+                    // Optionally show preview (can be styled as needed)
+                    const preview = document.getElementById('image-preview');
+                    if (preview) {
+                      preview.innerHTML = `<img src='${imgSrc}' alt='preview' style='max-width:80px;max-height:80px;border-radius:8px;margin-bottom:4px;' />`;
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.txt"
+              style={{ display: 'none' }}
+              id="upload-document"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const { readFileAsText } = await import('@/lib/fileReader');
+                  setContent(await readFileAsText(file));
+                }
+              }}
+            />
+            <input
+              type="file"
+              accept="video/*"
+              style={{ display: 'none' }}
+              id="upload-video"
+              onChange={async e => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const { readFileAsText } = await import('@/lib/fileReader');
+                  setContent(await readFileAsText(file));
+                }
+              }}
+            />
+            <div className="flex gap-2 items-end mt-2">
+              <span id="image-preview"></span>
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="Upload Image"
+                onClick={() => document.getElementById('upload-image')?.click()}
+              >
+                <ImageIcon className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="Upload Document"
+                onClick={() => document.getElementById('upload-document')?.click()}
+              >
+                <FileIcon className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="Upload Video"
+                onClick={() => document.getElementById('upload-video')?.click()}
+              >
+                <Video className="w-5 h-5" />
+              </button>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col md:flex-row items-start md:items-center gap-4">
             <div className="grid gap-2 flex-1 w-full">
               <Label htmlFor="outputType">Desired Output</Label>
               <Select
-                name="outputType"
                 value={outputType}
                 onValueChange={(v) => setOutputType(v as OutputType)}
               >
@@ -361,7 +400,6 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
             <div className="grid gap-2 flex-1 w-full">
               <Label htmlFor="language">Language</Label>
               <Select
-                name="language"
                 value={language}
                 onValueChange={setLanguage}
               >
