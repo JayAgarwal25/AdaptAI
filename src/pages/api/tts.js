@@ -6,7 +6,19 @@ if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 }
 import textToSpeech from '@google-cloud/text-to-speech';
 
-const client = new textToSpeech.TextToSpeechClient();
+// Use Vercel env vars for credentials if available, else fallback to local JSON
+const isVercel = Boolean(process.env.GCP_SERVICE_ACCOUNT_EMAIL && process.env.GCP_PRIVATE_KEY && process.env.GCP_PROJECT_ID);
+const client = new textToSpeech.TextToSpeechClient(
+  isVercel
+    ? {
+        credentials: {
+          client_email: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+          private_key: process.env.GCP_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        },
+        projectId: process.env.GCP_PROJECT_ID,
+      }
+    : undefined
+);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
