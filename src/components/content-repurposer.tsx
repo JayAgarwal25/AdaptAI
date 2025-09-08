@@ -118,14 +118,25 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
   // Get selected language from props or context
   const selectedLanguage = typeof window !== 'undefined' ? (document.getElementById('language')?.getAttribute('data-state') || 'English') : 'English';
 
+  // Simple markdown stripping function
+  function stripMarkdown(md: string) {
+    return md
+      .replace(/([*_~`>#\-])/g, '') // Remove markdown symbols
+      .replace(/\[(.*?)\]\((.*?)\)/g, '$1') // Remove links, keep text
+      .replace(/!\[(.*?)\]\((.*?)\)/g, '') // Remove images
+      .replace(/\n{2,}/g, '\n') // Collapse multiple newlines
+      .replace(/\n/g, ' '); // Replace newlines with space
+  }
+
   const playTTS = async (text: string, languageName: string = 'English') => {
     setTtsLoading(true);
     try {
       const languageCode = languageCodeMap[languageName] || 'en-IN';
+      const plainText = stripMarkdown(text);
       const res = await fetch('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, languageCode }),
+        body: JSON.stringify({ text: plainText, languageCode }),
       });
       if (!res.ok) throw new Error('TTS failed');
       const audioBlob = await res.blob();
