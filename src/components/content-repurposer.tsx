@@ -341,17 +341,50 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
             </ReactMarkdown>
           </div>
         );
-      case 'notes':
+      case 'notes': {
+        // Export Notes as PDF handler
+        const handleExportNotes = async () => {
+          try {
+            const res = await fetch('/api/export/notes', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ notes: result.data?.notes || '' }),
+            });
+            if (!res.ok) throw new Error('Failed to generate PDF');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'notes.pdf';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            alert('Could not export PDF.');
+          }
+        };
         return (
-          <div className="markdown-body">
-            <ReactMarkdown
-              remarkPlugins={[remarkMath]}
-              rehypePlugins={[rehypeKatex]}
-            >
-              {result.data?.notes || ''}
-            </ReactMarkdown>
-          </div>
+          <>
+            <div className="markdown-body">
+              <ReactMarkdown
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+              >
+                {result.data?.notes || ''}
+              </ReactMarkdown>
+            </div>
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={handleExportNotes}
+                className="px-4 py-2 rounded bg-purple-600 text-white text-sm shadow hover:bg-purple-700 transition"
+              >
+                Export Notes
+              </button>
+            </div>
+          </>
         );
+      }
       case 'video':
         return (
           <>
