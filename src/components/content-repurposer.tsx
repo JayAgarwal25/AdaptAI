@@ -20,6 +20,7 @@ import ReactMarkdown from 'react-markdown';
 
 import { useEffect, useState, useRef, useActionState } from 'react';
 import { MathRenderer } from './MathRenderer';
+import { LecturePlayer } from './LecturePlayer';
 import { useFormStatus } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -77,7 +78,7 @@ const outputOptions: {
   { value: 'summary', label: 'Summary', icon: FileText },
   { value: 'notes', label: 'Notes', icon: List },
   { value: 'quiz', label: 'Quiz', icon: HelpCircle },
-  { value: 'video', label: 'Video Script', icon: Video },
+  { value: 'video', label: 'Lecture', icon: Video },
 ];
 
 function SubmitButton() {
@@ -96,6 +97,8 @@ function SubmitButton() {
 
 function OutputRenderer({ result }: { result: RepurposeResult }) {
   const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({});
+  const [showLecturePlayer, setShowLecturePlayer] = useState(false);
+  const [lectureModalOpen, setLectureModalOpen] = useState(false);
   // TTS playback handler
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsPlaying, setTtsPlaying] = useState(false);
@@ -124,6 +127,7 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
       .replace(/([*_~`>#\-])/g, '') // Remove markdown symbols
       .replace(/\[(.*?)\]\((.*?)\)/g, '$1') // Remove links, keep text
       .replace(/!\[(.*?)\]\((.*?)\)/g, '') // Remove images
+      .replace(/\*\*|##/g, '') // Remove bold and heading markdown
       .replace(/\n{2,}/g, '\n') // Collapse multiple newlines
       .replace(/\n/g, ' '); // Replace newlines with space
   }
@@ -192,8 +196,38 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
           return acc;
         }, {} as Record<string, Array<any>>);
 
+        // Export Quiz as PDF handler
+        const handleExportQuiz = async () => {
+          try {
+            const res = await fetch('/api/export/quiz', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ quiz: quizArray }),
+            });
+            if (!res.ok) throw new Error('Failed to generate PDF');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'quiz.pdf';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            alert('Could not export PDF.');
+          }
+        };
+
         return (
-          <div className="space-y-8">
+          <div className="space-y-8 relative">
+            <button
+              onClick={handleExportQuiz}
+              className="absolute top-0 right-0 px-3 py-1 rounded bg-purple-600 text-white text-sm shadow hover:bg-purple-700 transition"
+              style={{ margin: '8px' }}
+            >
+              Export Quiz
+            </button>
             {Object.entries(grouped).map(([type, questions]) => (
               <div key={type}>
                 <h3 className="font-bold text-lg mb-2 capitalize" style={{ textDecoration: 'none' }}>{type === 'mcq' ? 'Multiple Choice Questions' : type === 'brief' ? 'Brief Answer' : type === 'truefalse' ? 'True/False' : type === 'fillblank' ? 'Fill in the Blank' : type}</h3>
@@ -320,15 +354,223 @@ function OutputRenderer({ result }: { result: RepurposeResult }) {
         );
       case 'video':
         return (
-          <div className="markdown-body">
-            <ReactMarkdown
-              remarkPlugins={[remarkMath]}
-              rehypePlugins={[rehypeKatex]}
-            >
-              {result.data?.summary || ''}
-            </ReactMarkdown>
-          </div>
+          <>
+            {/* Only show summary if no lectureSteps, otherwise just Play button */}
+            <div className="markdown-body">
+              <ReactMarkdown
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+              >
+                {result.data?.lectureSteps ? '' : result.data?.summary || ''}
+              </ReactMarkdown>
+            </div>
+            {result.data?.lectureSteps && (
+              <Button className="mt-4" onClick={() => setLectureModalOpen(true)}>
+                Play Lecture
+              </Button>
+            )}
+            {/* Modal for lecture playback */}
+            {lectureModalOpen && result.data?.lectureSteps && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+                <div className="rounded-lg shadow-lg p-8 max-w-3xl w-full min-h-[500px] relative bg-white dark:bg-zinc-900 dark:text-white transition-colors">
+                  <button
+                    className="absolute top-2 right-2 text-gray-500 hover:text-gray-300 dark:hover:text-gray-100"
+                    onClick={() => {
+                      setLectureModalOpen(false);
+                      // Stop any ongoing audio/TTS playback
+                      const win = window as Window & { __adaptAIWhiteboardAudioRef?: React.RefObject<HTMLAudioElement> };
+                      if (win.__adaptAIWhiteboardAudioRef && win.__adaptAIWhiteboardAudioRef.current) {
+                        win.__adaptAIWhiteboardAudioRef.current.pause();
+                        win.__adaptAIWhiteboardAudioRef.current.currentTime = 0;
+                      }
+                    }}
+                  >
+                    ✕
+                  </button>
+                  {typeof window !== 'undefined' && (
+                    <LectureWhiteboardPlayer lecture={result.data.lectureSteps} />
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         );
+// Whiteboard player: sequentially types sentences and syncs with TTS
+// Accepts both legacy and new slide formats
+function LectureWhiteboardPlayer({ lecture }: { lecture: any }) {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [displayed, setDisplayed] = useState<string[]>([]);
+  const [playing, setPlaying] = useState(false);
+  const [showTitle, setShowTitle] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Expose audioRef globally so parent can stop audio on modal close
+  if (typeof window !== 'undefined') {
+    (window as any).__adaptAIWhiteboardAudioRef = audioRef;
+  }
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    // Accept new structure: { lectureTitle, slides }
+    // If new format, lecture is { lectureTitle, slides }
+    let slides: Array<{ title: string; content: string; speak?: string }> = [];
+    let title = '';
+    if (lecture && typeof lecture === 'object' && Array.isArray(lecture.slides)) {
+      slides = lecture.slides;
+      title = lecture.lectureTitle || '';
+    } else if (Array.isArray(lecture) && lecture.length > 0) {
+      // Legacy/array format: use provided slides and derive a title from first slide if available
+      slides = lecture.map((step: any, idx: number) => ({ title: step.title ?? `Slide ${idx + 1}`, content: step.content, speak: step.content }));
+      title = lecture[0]?.title || '';
+    }
+    const maxLines = 5;
+
+  // Only fetch audio for the first slide
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchAudio() {
+      if (!slides.length) return;
+      const plainText = stripMarkdown(slides[0].speak || slides[0].content || '');
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: plainText, languageCode: 'en-IN' }),
+      });
+      if (!res.ok) return;
+      const audioBlob = await res.blob();
+      if (isMounted) setAudioUrl(URL.createObjectURL(audioBlob));
+    }
+    fetchAudio();
+    return () => { isMounted = false; };
+  }, [lecture]);
+
+  useEffect(() => {
+    if (!playing) return;
+    let idx = 0;
+    let stopped = false;
+    setDisplayed([]);
+
+    function playSentence(i: number, accumulated: string[] = []) {
+      if (stopped || i >= slides.length) return;
+      // Clear board before each slide
+      setDisplayed([]);
+      setTimeout(() => {
+        // Display raw markdown for whiteboard
+        setDisplayed([slides[i].content]);
+        // Stop previous audio before starting new
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
+        // For TTS, strip markdown and decode HTML entities
+        let plainText = stripMarkdown(slides[i].speak || slides[i].content || '');
+        // Decode HTML entities (for equations, etc.)
+        const txt = document.createElement('textarea');
+        txt.innerHTML = plainText;
+        plainText = txt.value;
+        const audio = new window.Audio();
+        audioRef.current = audio;
+        fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: plainText, languageCode: 'en-IN' }),
+        })
+          .then(res => res.ok ? res.blob() : null)
+          .then(audioBlob => {
+            if (audioBlob) {
+              audio.src = URL.createObjectURL(audioBlob);
+              audio.onended = () => {
+                setDisplayed([]); // Clear board after TTS
+                if (!stopped) playSentence(i + 1, []);
+              };
+              audio.play();
+            }
+          });
+      }, 400); // Small delay for clearing effect
+    }
+    playSentence(idx, []);
+    return () => {
+      stopped = true;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    };
+  }, [playing]);
+
+  const handlePlayPause = () => {
+    // Only start playback if not already playing
+    if (!playing) {
+      // Stop any currently playing audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setDisplayed([]);
+      setShowTitle(true);
+      setPlaying(true);
+      // Show title for 1.2s, then start slides
+      setTimeout(() => {
+        setShowTitle(false);
+      }, 1200);
+    } else {
+      // Pause playback
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setPlaying(false);
+      setDisplayed([]);
+      setShowTitle(true);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-6 w-full h-full">
+      <div className="w-full mb-4 h-full flex flex-col">
+        <div
+          className="bg-gray-100 dark:bg-zinc-800 rounded p-4 transition-colors flex-1"
+          style={{ whiteSpace: 'pre-line', height: 'calc(85vh)', minHeight: '340px', maxHeight: '800px', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', alignItems: 'center' }}
+        >
+          {title && (
+            <div className="mb-4 text-3xl font-bold text-center" style={{ width: '100%' }}>
+              {title}
+            </div>
+          )}
+          {!showTitle && displayed.map((s, i) => (
+            <div key={i} style={{ marginBottom: 16, width: '100%' }}>
+              <ReactMarkdown
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  h1: ({node, ...props}) => <h1 className="text-base font-bold mb-2 text-black dark:text-white" style={{fontSize: '1.1rem'}} {...props} />,
+                  h2: ({node, ...props}) => <h2 className="text-base font-bold mb-2 text-black dark:text-white" style={{fontSize: '1rem'}} {...props} />,
+                  ul: ({node, ...props}) => <ul className="list-disc ml-6 mb-2 text-black dark:text-white" style={{fontSize: '1rem'}} {...props} />,
+                  li: ({node, ...props}) => <li className="mb-1 text-black dark:text-white" style={{fontSize: '1rem'}} {...props} />,
+                  p: ({node, ...props}) => <p className="mb-2 text-black dark:text-white" style={{fontSize: '1rem'}} {...props} />,
+                }}
+              >
+                {s}
+              </ReactMarkdown>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-4 items-center">
+        <button
+          className="px-4 py-2 rounded bg-purple-600 text-white font-semibold shadow hover:bg-purple-700"
+          onClick={handlePlayPause}
+          disabled={!audioUrl}
+        >
+          {playing ? 'Pause' : 'Play'}
+        </button>
+        <audio
+          ref={audioRef}
+          src={audioUrl || undefined}
+          onEnded={() => setPlaying(false)}
+          style={{ display: 'none' }}
+        />
+      </div>
+    </div>
+  );
+}
       default:
         return <p>Could not render the output.</p>;
     }
@@ -391,6 +633,8 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
   const [content, setContent] = useState('');
   const [language, setLanguage] = useState('English');
   const [currentResult, setCurrentResult] = useState<RepurposeResult | null>(null);
+  // Hardcoded duration for video output
+  const duration = 30;
 
   const processedHistoryIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -461,6 +705,10 @@ export function ContentRepurposer({ setHistory }: ContentRepurposerProps) {
             {/* Hidden inputs to ensure React state is submitted */}
             <input type="hidden" name="outputType" value={outputType} />
             <input type="hidden" name="language" value={language} />
+            {/* Hardcoded duration for video output, only included if outputType is 'video' */}
+            {outputType === 'video' && (
+              <input type="hidden" name="duration" value={duration} />
+            )}
             <div>
               <div className="relative">
                 <Textarea

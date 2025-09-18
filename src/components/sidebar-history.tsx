@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { History, Trash2, FileText } from 'lucide-react';
+import { History, Trash2, FileText, LayoutDashboard, BookOpen, MessageSquare } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-local-storage';
 import {
   SidebarGroup,
@@ -29,13 +29,44 @@ import { Button } from '@/components/ui/button';
 
 export function SidebarHistory({ history, setHistory }: { history: HistoryItem[]; setHistory: (value: HistoryItem[] | ((val: HistoryItem[]) => HistoryItem[])) => void }) {
   const searchParams = useSearchParams();
-  const activeHistoryId = searchParams.get('historyId');
+  const activeHistoryId = searchParams?.get('historyId') ?? null;
   const clearHistory = () => {
     setHistory([]);
   };
 
   return (
-    <SidebarGroup>
+    <>
+      {/* Quick navigation buttons above History */}
+      <SidebarGroup>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <Link href="/" className="w-full" scroll={false}>
+              <SidebarMenuButton className="w-full" tooltip={{ children: 'Chat', side: 'right' }}>
+                <MessageSquare />
+                <span>Chat</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <Link href="/dashboard" className="w-full" scroll={false}>
+              <SidebarMenuButton className="w-full" tooltip={{ children: 'Dashboard', side: 'right' }}>
+                <LayoutDashboard />
+                <span>Dashboard</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <Link href="/library" className="w-full" scroll={false}>
+              <SidebarMenuButton className="w-full" tooltip={{ children: 'Library', side: 'right' }}>
+                <BookOpen />
+                <span>Library</span>
+              </SidebarMenuButton>
+            </Link>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+
+      <SidebarGroup>
       <SidebarGroupLabel className="flex items-center">
         <History className="mr-2 size-4" />
         History
@@ -91,5 +122,6 @@ export function SidebarHistory({ history, setHistory }: { history: HistoryItem[]
         )}
       </SidebarMenu>
     </SidebarGroup>
+    </>
   );
 }

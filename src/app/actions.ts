@@ -54,9 +54,9 @@ export async function repurposeContent(
         return { success: true, data: result, outputType };
       }
       case 'video': {
-        const result = await repurposeContentIntoSummary({ content, language });
-        const videoScript = `This is a generated script for a short-form video based on your content.\n\n---\n\n${result.summary}`;
-        return { success: true, data: { summary: videoScript }, outputType };
+        const { repurposeContentIntoLecture } = await import('@/ai/flows/repurpose-content-into-lecture');
+        const result = await repurposeContentIntoLecture({ content, language });
+        return { success: true, data: { summary: result.script, lectureSteps: result.lectureSteps }, outputType };
       }
       default:
         return {
