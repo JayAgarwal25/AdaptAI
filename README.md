@@ -11,8 +11,12 @@ AdaptAI is a Next.js web application for repurposing educational content. It all
 ## Features
 - File upload and extraction (PDF, DOCX, TXT, images, audio, video)
 - AI-powered content adaptation (summary, notes, quiz, video script)
+- Choose among 10 Indian languages
 - Quiz UI with instant feedback and explanations
+- Export your generated notes and quizzes
 - TTS playback for generated content in various languages
+- (Mock) Manage generated content, track status, and view mock analytics.
+- (Mock) Access your uploads plus curated resources (e.g., NCERT books, sample papers).
 - History of adapted content
 
 ## Setup
